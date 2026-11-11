@@ -1,0 +1,37 @@
+node_modules/
+dist/
+.expo/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+references/extracted/
+artifacts/
+!docs/reference/version3/dist/
+!docs/reference/version3/dist/**
+
+# Local development scratch and archives
+/backups/
+/scratch/
+/test-results/
+
+# Local editor and patch backups
+*.bak
+*.backup-*
+
+# Temporary ERP repair scripts
+/fix-erp-*.ps1
+
+# Private owner-specific UAT execution
+/docs/uat/OWNER_FINAL_UAT_EXECUTION.md
+
+# Image-free catalogue: local raw image binaries and obsolete image pipeline assets
+/All images/
+/catalogue-data/images/
+/catalogue-data/representative-image-groups.json
+/catalogue-data/catalogue-image-manifest.json
+/catalogue-data/catalogue-progress-tracker.json
+/catalogue-data/SUPERSEDED.md
+
+
