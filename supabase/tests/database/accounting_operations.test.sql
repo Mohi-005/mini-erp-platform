@@ -31,7 +31,8 @@ insert into public.business_settings(business_id) values
 insert into public.customers(id, business_id, name, customer_type) values
   ('63000000-0000-4000-8000-000000000001', '23000000-0000-4000-8000-000000000001', 'Phase 2E Customer', 'INDIVIDUAL');
 insert into public.suppliers(id, business_id, name) values
-  ('64000000-0000-4000-8000-000000000001', '23000000-0000-4000-8000-000000000001', 'Phase 2E Supplier');
+  ('64000000-0000-4000-8000-000000000001', '23000000-0000-4000-8000-000000000001', 'Phase 2E Supplier'),
+  ('64000000-0000-4000-8000-000000000002', '23000000-0000-4000-8000-000000000002', 'Phase 2E Supplier B');
 
 insert into public.products(id, business_id, name_bn, unit_id, default_selling_price, minimum_stock) values
   ('73000000-0000-4000-8000-000000000001', '23000000-0000-4000-8000-000000000001', 'Phase 2E Product A',
@@ -361,5 +362,83 @@ select throws_ok(
   'inventory.view does not grant permission to create a sale'
 );
 
-select * from finish();
+-- Purchase unit conversion regression:
+-- 2 maunds purchased, 80 kg added to the product's base-unit stock.
+
+set local request.jwt.claims = '{"sub":"13000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+select lives_ok(
+  $$select public.record_inventory_opening_stock(
+    '73000000-0000-4000-8000-000000000002',
+    1,
+    '83000000-0000-4000-8000-000000000091',
+    'unit conversion regression baseline'
+  )$$,
+  'Owner B establishes base-unit stock before the conversion test'
+);
+
+select lives_ok(
+  $$select public.post_purchase(
+    '23000000-0000-4000-8000-000000000002',
+    '64000000-0000-4000-8000-000000000002',
+    '[{"product_id":"73000000-0000-4000-8000-000000000002","quantity":"2","unit_cost":"500","unit_name":"Ã Â¦Â®Ã Â¦Â¨","base_quantity":"80"}]'::jsonb,
+    0,
+    0,
+    null,
+    null,
+    '83000000-0000-4000-8000-000000000092',
+    '2026-10-18T04:00:00Z',
+    'Unit conversion regression test'
+  )$$,
+  'Purchase RPC accepts two maunds with an 80 kg base quantity'
+);
+
+select is(
+  (select quantity
+   from public.inventory_balances
+   where business_id = '23000000-0000-4000-8000-000000000002'
+     and product_id = '73000000-0000-4000-8000-000000000002'),
+  81::numeric,
+  'two maunds increase the one-kg opening stock to 81 kg'
+);
+
+select is(
+  (select quantity_delta
+   from public.inventory_movements
+   where business_id = '23000000-0000-4000-8000-000000000002'
+     and movement_type = 'purchase'
+     and product_id = '73000000-0000-4000-8000-000000000002'),
+  80::numeric,
+  'purchase inventory movement records 80 kg, not 2 maunds'
+);
+
+select is(
+  (select quantity_after
+   from public.inventory_movements
+   where business_id = '23000000-0000-4000-8000-000000000002'
+     and movement_type = 'purchase'
+     and product_id = '73000000-0000-4000-8000-000000000002'),
+  81::numeric,
+  'purchase movement ending balance is recorded in kilograms'
+);
+
+select is(
+  (select quantity
+   from public.purchase_lines_read
+   where business_id = '23000000-0000-4000-8000-000000000002'
+     and product_id = '73000000-0000-4000-8000-000000000002'),
+  2::numeric,
+  'purchase line retains the original purchased quantity'
+);
+
+select is(
+  (select landed_unit_cost
+   from public.purchase_lines_read
+   where business_id = '23000000-0000-4000-8000-000000000002'
+     and product_id = '73000000-0000-4000-8000-000000000002'),
+  12.5::numeric,
+  'landed unit cost is divided by 80 base kilograms'
+);
+
+select * from finish(true);
 rollback;
